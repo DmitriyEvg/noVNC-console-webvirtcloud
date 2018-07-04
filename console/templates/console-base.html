@@ -1,0 +1,498 @@
+{% load staticfiles %}
+{% load i18n %}
+<html style="overflow: auto;">
+<head>
+  <meta charset="utf-8">
+  <link rel="shortcut icon" href="{% static "img/favicon.ico" %}">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="{% static "css/bulma.min.css" %}">
+  <link rel="stylesheet" href="{% static "glyphicons-only-bootstrap/css/bootstrap.css" %}">
+  <script src="{% static "js/jquery.js" %}"></script>
+  <script defer src="{% static "js/solid.js" %}" integrity="sha384-tzzSw1/Vo+0N5UhStP3bvwWPq+uvzCMfrN1fEFe+xBmv1C/AtVX5K0uZtmcHitFZ" crossorigin="anonymous"></script>
+  <script defer src="{% static "js/fontawesome.js" %}" integrity="sha384-6OIrr52G08NpOFSZdxxz1xdNSndlD4vdcf/q2myIUVO0VsqaGHJsB0RaBE01VTOY" crossorigin="anonymous"></script>
+  <link href="{% static "css/webvirtcloud.css" %}" rel="stylesheet">
+  <script src="{% static "js/ajax.js" %}"></script>
+
+  <style>
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #313131;
+    height: 100%;
+  }
+  .navbar {
+    width: 100%;
+    position: absolute;
+  }
+  #main_container {
+    padding: 0;
+    /* width: 100%; */
+    max-width: none;
+    height: 100%;
+    background-color:#494949;
+    border-bottom-right-radius: 800px 600px;
+  }
+  #main_container canvas {
+    padding-left: 0;
+    padding-right: 0;
+    margin-left: auto;
+    margin-right: auto;
+    display: block;
+    margin: auto;
+  }
+  #status {
+    z-index: 10000;
+    width: 80%;
+    position: absolute;
+    bottom: 5%;
+    left: 10%;
+    text-align: center;
+  }
+  a.dropdown-item.active,
+  a.navbar-item.active,
+  a.navbar-item.active:hover,
+  a.dropdown-item.active:hover {
+    background: #3273dc;
+    color: white;
+  }
+  img:hover {
+    color: #3273dc;
+  }
+</style>
+
+{% block head %}{% endblock %}
+
+</head>
+
+<body>
+  
+<!-- Modals -->
+<div class="modal" id="modal-power">
+  <div class="modal-background"></div>
+  <div class="modal-card">
+    <header class="modal-card-head" >
+      <p class="modal-card-title">Attention!</p>
+      <button class="delete" aria-label="close"></button>
+    </header>
+    <section class="modal-card-body">
+     Server will be shutdown. Save your work and close them properly. 
+   </section>
+   <footer class="modal-card-foot">
+    <button id="instanceShutdown" class="button is-danger">Shutdown</button>
+    <button class="button">Cancel</button>
+  </footer>
+</div>
+</div>
+<div class="modal" id="modal-restart">
+  <div class="modal-background"></div>
+  <div class="modal-card">
+    <header class="modal-card-head" >
+      <p class="modal-card-title">Attention!</p>
+      <button class="delete" aria-label="close"></button>
+    </header>
+    <section class="modal-card-body">
+     Server will be restarted. Save your work and close them properly. 
+   </section>
+   <footer class="modal-card-foot">
+    <button id="instanceRestart" class="button is-danger">{% trans "Restart" %}</button>
+    <button class="button">Cancel</button>
+  </footer>
+</div>
+</div>
+<div class="modal" id="modal-pause">
+  <div class="modal-background"></div>
+  <div class="modal-card">
+    <header class="modal-card-head" >
+      <p class="modal-card-title">Attention!</p>
+      <button class="delete" aria-label="close"></button>
+    </header>
+    <section class="modal-card-body">
+     Server will be paused. Save your work and close them properly. 
+   </section>
+   <footer class="modal-card-foot">
+    <button id="instanceSuspend" class="button is-warning">Pause</button>
+    <button class="button">Cancel</button>
+  </footer>
+</div>
+</div>
+<div class="modal" id="modal-iso">
+  <div class="modal-background"></div>
+  <div class="modal-card">
+    <header class="modal-card-head" >
+      <p class="modal-card-title">Chose ISO</p>
+      <button class="delete" aria-label="close"></button>
+    </header>
+    <section class="modal-card-body">
+      <form>
+        <div class="control">
+          <label class="radio">
+            <input type="radio" name="rsvp">
+            Ubuntu
+          </label></br>
+          <label class="radio">
+            <input type="radio" name="rsvp2">
+            Mac OS
+          </label></br>
+          <label class="radio">
+            <input type="radio" name="rsvp3" >
+            Debian
+          </label></br>
+        </div>
+      </section>
+      <footer class="modal-card-foot">
+        <button class="button is-danger">Mount</button></form>
+        <button class="button">Cancel</button>
+      </footer>
+    </div>
+  </div>
+<!-- ./Modals -->
+<nav id="navbarParent" class="navbar is-fixed-top"  role="navigation" aria-label="dropdown navigation">
+  <div class="navbar-brand">
+    <a class="navbar-item" href="#">
+        <img src="{% static "images/kvm_logo.png" %}"   height="32">
+      </a>
+      {% block navbarmenu %}{% endblock %}
+      <div class="dropdown">
+        <a class="navbar-item is-hidden-desktop" aria-haspopup="true" aria-controls="dropdown-keys">
+          <span>Key's</span>
+        </a>
+        <div class="dropdown-menu" id="dropdown-keys" role="menu">
+          <div class="dropdown-content">
+            <a class="dropdown-item" onclick='sendCtrlAltDel();'>
+              Ctrl+Alt+Del
+            </a>
+            <hr class="dropdown-divider">
+            <a class="dropdown-item" onclick='sendCtrlAltFN(0);'>
+              Ctrl+Alt+F1
+            </a>
+            <a class="dropdown-item" onclick='sendCtrlAltFN(1);'>
+              Ctrl+Alt+F2
+            </a>
+            <a class="dropdown-item" onclick='sendCtrlAltFN(2);'>
+              Ctrl+Alt+F3
+            </a>
+            <a class="dropdown-item" onclick='sendCtrlAltFN(3);'>
+              Ctrl+Alt+F4
+            </a>
+            <a class="dropdown-item" onclick='sendCtrlAltFN(4);'>
+              Ctrl+Alt+F5
+            </a>
+            <a class="dropdown-item" onclick='sendCtrlAltFN(5);'>
+              Ctrl+Alt+F6
+            </a>
+            <a class="dropdown-item " onclick='sendCtrlAltFN(6);'>
+              Ctrl+Alt+F7
+            </a>
+            <a class="dropdown-item" onclick='sendCtrlAltFN(7);'>
+              Ctrl+Alt+F8
+            </a>
+            <a class="dropdown-item" onclick='sendCtrlAltFN(8);'>
+              Ctrl+Alt+F9
+            </a>
+            <a class="dropdown-item" onclick='sendCtrlAltFN(9);'>
+              Ctrl+Alt+F10
+            </a>
+            <a class="dropdown-item" onclick='sendCtrlAltFN(10);'>
+              Ctrl+Alt+F11
+            </a>
+            <a class="dropdown-item" onclick='sendCtrlAltFN(11);'>
+              Ctrl+Alt+F12
+            </a>
+          </div>
+        </div>
+      </div>
+      <div class="dropdown">
+          <a class="navbar-item is-hidden-desktop" aria-haspopup="true" aria-controls="dropdown-scale">
+            <span class="icon">
+              <svg width="32" height="32" viewBox="0 0 32 32">
+                  <path fill="currentColor" d="M 5 5 L 5 6 L 5 7 L 6 7 L 7 7 L 7 6 L 7 5 L 6 5 L 5 5 z M 9 5 L 9 7 L 11 7 L 11 5 L 9 5 z M 13 5 L 13 7 L 15 7 L 15 5 L 13 5 z M 17 5 L 17 7 L 19 7 L 19 5 L 17 5 z M 21 5 L 21 7 L 23 7 L 23 5 L 21 5 z M 25 5 L 25 6 L 25 7 L 26 7 L 27 7 L 27 6 L 27 5 L 26 5 L 25 5 z M 5 9 L 5 11 L 7 11 L 7 9 L 5 9 z M 25 9 L 25 11 L 27 11 L 27 9 L 25 9 z M 14 11 L 14 13 L 17.5625 13 L 13.5625 17 L 7 17 L 5 17 L 5 18 L 5 19 L 5 21 L 5 23 L 5 25 L 5 26 L 5 27 L 6 27 L 7 27 L 14 27 L 15 27 L 15 26 L 15 18.4375 L 19 14.4375 L 19 18 L 21 18 L 21 12 L 21 11 L 20 11 L 14 11 z M 5 13 L 5 15 L 7 15 L 7 13 L 5 13 z M 25 13 L 25 15 L 27 15 L 27 13 L 25 13 z M 25 17 L 25 19 L 27 19 L 27 17 L 25 17 z M 7 19 L 13 19 L 13 25 L 7 25 L 7 23 L 7 21 L 7 19 z M 25 21 L 25 23 L 27 23 L 27 21 L 25 21 z M 17 25 L 17 27 L 19 27 L 19 25 L 17 25 z M 21 25 L 21 27 L 23 27 L 23 25 L 21 25 z M 25 25 L 25 26 L 25 27 L 26 27 L 27 27 L 27 26 L 27 25 L 26 25 L 25 25 z"/>
+              </svg>
+            </span>
+            <span>Scale</span>
+          </a>
+        <div class="dropdown-menu" id="dropdown-scale" role="menu">
+            <div class="dropdown-content">
+              <a class="dropdown-item scale-item">
+                None
+              </a>
+              <a class="dropdown-item scale-item">
+                Local Scaling
+              </a>
+              <a class="dropdown-item scale-item active">
+                Local Downscaling
+              </a>
+            </div>
+          </div>
+        </div>
+      <div class="navbar-burger burger" data-target="navbar">
+        <span></span>
+        <span></span>
+        <span></span>
+      </div>
+    </div>
+
+  <div id="navbar" class="navbar-menu">
+      <div class="navbar-start">
+        <a class="navbar-item" onclick='toggleFullscreen()'>
+          <span id="#noVNC_fullscreen_icon" class="icon">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+              <path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"></path>
+            </svg>
+          </span>
+          <span class="is-hidden-desktop">Fullscreen</span>
+        </a>
+		<a id="noVNC_clip" class="navbar-item" onclick='windowResize()'>
+          <span class="icon">
+			<svg width="16" height="16" viewBox="0 0 561 561"><g><g>
+				<path fill="currentColor"  d="M408,357h51V153c0-28.05-22.95-51-51-51H204v51h204V357z M153,408V0h-51v102H0v51h102v255c0,28.05,22.95,51,51,51h255v102
+			h51V459h102v-51H153z"></path>
+			</svg>
+          </span>
+          <span>Clip</span>
+        </a>
+        <div class="navbar-item has-dropdown is-hoverable is-hidden-touch">
+          <a class="navbar-link">
+            <span class="icon">
+              <svg width="32" height="32" viewBox="0 0 32 32">
+                  <path fill="currentColor" d="M 5 5 L 5 6 L 5 7 L 6 7 L 7 7 L 7 6 L 7 5 L 6 5 L 5 5 z M 9 5 L 9 7 L 11 7 L 11 5 L 9 5 z M 13 5 L 13 7 L 15 7 L 15 5 L 13 5 z M 17 5 L 17 7 L 19 7 L 19 5 L 17 5 z M 21 5 L 21 7 L 23 7 L 23 5 L 21 5 z M 25 5 L 25 6 L 25 7 L 26 7 L 27 7 L 27 6 L 27 5 L 26 5 L 25 5 z M 5 9 L 5 11 L 7 11 L 7 9 L 5 9 z M 25 9 L 25 11 L 27 11 L 27 9 L 25 9 z M 14 11 L 14 13 L 17.5625 13 L 13.5625 17 L 7 17 L 5 17 L 5 18 L 5 19 L 5 21 L 5 23 L 5 25 L 5 26 L 5 27 L 6 27 L 7 27 L 14 27 L 15 27 L 15 26 L 15 18.4375 L 19 14.4375 L 19 18 L 21 18 L 21 12 L 21 11 L 20 11 L 14 11 z M 5 13 L 5 15 L 7 15 L 7 13 L 5 13 z M 25 13 L 25 15 L 27 15 L 27 13 L 25 13 z M 25 17 L 25 19 L 27 19 L 27 17 L 25 17 z M 7 19 L 13 19 L 13 25 L 7 25 L 7 23 L 7 21 L 7 19 z M 25 21 L 25 23 L 27 23 L 27 21 L 25 21 z M 17 25 L 17 27 L 19 27 L 19 25 L 17 25 z M 21 25 L 21 27 L 23 27 L 23 25 L 21 25 z M 25 25 L 25 26 L 25 27 L 26 27 L 27 27 L 27 26 L 27 25 L 26 25 L 25 25 z"/>
+              </svg>
+            </span>
+            <span> Scale</span>
+          </a>
+          <div class="navbar-dropdown is-boxed is-hoverable ">
+            <a class="navbar-item scale-item">
+              None
+            </a>
+            <a class="navbar-item scale-item">
+              Local Scaling
+            </a>
+            <a class="navbar-item scale-item active">
+              Local Downscaling
+            </a>
+          </div>
+        </div>
+
+      <div class="navbar-item has-dropdown is-hoverable is-hidden-touch">
+        <a class="navbar-link">
+          <span class="icon">
+            <i class="fa fa-keyboard "></i>
+          </span>         
+          <span>Send Key's</span>  
+        </a>
+        <div class="navbar-dropdown is-boxed is-hoverable ">
+          <a class="navbar-item hovered " onclick='sendCtrlAltDel();'>
+            Ctrl+Alt+Del
+          </a>
+          <hr class="navbar-divider">
+          <a class="navbar-item" onclick='sendCtrlAltFN(0);'>
+            Ctrl+Alt+F1
+          </a>
+          <a class="navbar-item" onclick='sendCtrlAltFN(1);'>
+            Ctrl+Alt+F2
+          </a>
+          <a class="navbar-item" onclick='sendCtrlAltFN(2);'>
+            Ctrl+Alt+F3
+          </a>
+          <a class="navbar-item" onclick='sendCtrlAltFN(3);'>
+            Ctrl+Alt+F4
+          </a>
+          <a class="navbar-item" onclick='sendCtrlAltFN(4);'>
+            Ctrl+Alt+F5
+          </a>
+          <a class="navbar-item" onclick='sendCtrlAltFN(5);'>
+            Ctrl+Alt+F6
+          </a>
+          <a class="navbar-item " onclick='sendCtrlAltFN(6);'>
+            Ctrl+Alt+F7
+          </a>
+          <a class="navbar-item" onclick='sendCtrlAltFN(7);'>
+            Ctrl+Alt+F8
+          </a>
+          <a class="navbar-item" onclick='sendCtrlAltFN(8);'>
+            Ctrl+Alt+F9
+          </a>
+          <a class="navbar-item" onclick='sendCtrlAltFN(9);'>
+            Ctrl+Alt+F10
+          </a>
+          <a class="navbar-item" onclick='sendCtrlAltFN(10);'>
+            Ctrl+Alt+F11
+          </a>
+          <a class="navbar-item" onclick='sendCtrlAltFN(11);'>
+            Ctrl+Alt+F12
+          </a>
+        </div>
+      </div>
+    </div>
+    <div class="navbar-end">
+      <!-- Link to open the modal -->
+      <a class="navbar-item modal-button" data-target="modal-iso" aria-haspopup="true" >
+        <span class="icon">
+          <i class="fa fa-compact-disc"></i>
+        </span>
+        <span>Mount ISO</span>
+      </a>
+	  <div class="navbar-item has-dropdown is-hoverable is-hidden-touch">
+        <a class="navbar-link is-hidden-touch">
+          <span class="icon">
+            <i class="fa fa-power-off "></i>
+          </span>         
+          <span>Actions</span>  
+        </a>
+	<div class="navbar-dropdown is-boxed is-hoverable ">
+          <a id="poweroffButton" class="navbar-item modal-button" data-target="modal-power" aria-haspopup="true" style="display: none;">
+            <span class="icon">
+              <i class="fa fa-power-off"></i>
+            </span>
+            <span>Power off</span>
+          </a>
+		  <a id="poweronButton" class="navbar-item modal-button" style="display: none;">
+            <span class="icon">
+              <i class="fa fa-power-off"></i>
+            </span>
+            <span>Power on</span>
+          </a>
+          <a id="suspendButton" class="navbar-item modal-button" data-target="modal-pause" aria-haspopup="true" style="display: none;">
+            <span class="icon">
+              <i class="fa fa-pause"></i>
+            </span>
+            <span>Pause</span>
+          </a>
+          <a id="resumeButton" class="navbar-item modal-button" style="display: none;" style="display: none;">
+            <span class="icon">
+              <i class="fa fa-play"></i>
+            </span>
+            <span>Resume</span>
+          </a>
+          <a id="restartButton" class="navbar-item modal-button" data-target="modal-restart" aria-haspopup="true" style="display: none;">
+            <span class="icon">
+              <i class="fa fa-undo"></i>
+            </span>
+            <span>Restart</span>
+          </a>
+		</div>
+	  </div>
+	</div>
+  </div>  
+</nav>
+  <div id='main_container' >
+    {% block content %}{% endblock %}
+  </div>
+
+
+  <script>
+    function log_message(msg,type) {
+      var exist=$('#status').is('div');
+      status_div=$('<div id="status" class="notification is-'+type+'">'+msg+'</div>');
+      if (exist) {
+        $('#status').remove();
+        $('body').prepend(status_div);
+      }
+      else {
+        status_div.hide();
+        $('body').prepend(status_div);
+        status_div.fadeIn(200);
+      }
+      if (type!='danger') {
+        status_div.delay(3000).fadeOut(200);
+      }
+    }
+
+	function log_warning(msg) {
+      log_message(msg,'warning');
+    }
+	
+    function log_error(msg) {
+      log_message(msg,'danger');
+    }
+
+    function log_info(msg) {
+      log_message(msg,'info');
+    }
+    {% if console_error %}
+    log_error('{{ console_error|escapejs }}');
+    {% endif %}
+
+    document.addEventListener('DOMContentLoaded', function () {
+      var $navbarBurgers = Array.prototype.slice.call(document.querySelectorAll('.navbar-burger'), 0);
+      if ($navbarBurgers.length > 0) {
+        $navbarBurgers.forEach(function ($el) {
+         $el.addEventListener('click', function () {
+          var target = $el.dataset.target;
+          var $target = document.getElementById(target);
+          $el.classList.toggle('is-active');
+          $target.classList.toggle('is-active');
+        });
+       });
+      }
+      var rootEl = document.documentElement;
+      var $modals = getAll('.modal');
+      var $modalButtons = getAll('.modal-button');
+      var $modalCloses = getAll('.modal-background, .modal-close, .modal-card-head .delete, .modal-card-foot .button');
+
+      if ($modalButtons.length > 0) {
+        $modalButtons.forEach(function ($el) {
+          $el.addEventListener('click', function () {
+            var target = $el.dataset.target;
+            var $target = document.getElementById(target);
+            rootEl.classList.add('is-clipped');
+            $target.classList.add('is-active');
+          });
+        });
+      }
+
+      if ($modalCloses.length > 0) {
+        $modalCloses.forEach(function ($el) {
+          $el.addEventListener('click', function () {
+            closeModals();
+          });
+        });
+      }
+
+      document.addEventListener('keydown', function (event) {
+        var e = event || window.event;
+        if (e.keyCode === 27) {
+          closeModals();
+        }
+      });
+
+      function closeModals() {
+        rootEl.classList.remove('is-clipped');
+        $modals.forEach(function ($el) {
+          $el.classList.remove('is-active');
+        });
+      }
+
+   // Dropdowns
+
+   var $dropdowns = getAll('.dropdown:not(.is-hoverable)');
+
+   if ($dropdowns.length > 0) {
+    $dropdowns.forEach(function ($el) {
+      $el.addEventListener('click', function (event) {
+        event.stopPropagation();
+        $el.classList.toggle('is-active');
+      });
+    });
+
+    document.addEventListener('click', function (event) {
+      closeDropdowns();
+    });
+  }
+
+  function closeDropdowns() {
+    $dropdowns.forEach(function ($el) {
+      $el.classList.remove('is-active');
+    });
+  }
+    // Functions
+
+    function getAll(selector) {
+      return Array.prototype.slice.call(document.querySelectorAll(selector), 0);
+    }
+});
+</script>
+
+
+{% block foot %}{% endblock %}
+</body>
+</html>

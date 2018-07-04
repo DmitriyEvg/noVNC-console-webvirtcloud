@@ -1,0 +1,381 @@
+{% extends "console-base.html" %}
+{% load i18n %}
+{% load staticfiles %}
+{% block head %}
+    <!-- <script src="{% static "js/novnc/util.js" %}"></script> -->
+    <link rel="stylesheet" href="{% static "css/novnc.css" %}">
+    <script src="{% static "js/novnc/util.js" %}"></script>
+
+{% endblock %}
+
+{% block navbarmenu %}
+                <!-- dirty fix for keyboard on iOS devices -->
+                <a class="navbar-item" id="showKeyboard" >
+                    <span class="icon">
+                      <i class="fa fa-keyboard"></i>
+                    </span>
+                    <span>{% trans "Keyboard" %}</span>
+                </a>
+{% endblock %}
+
+{% block content %}
+    <div id='noVNC_area'>
+    <canvas id="noVNC_canvas" width="0" height="0">
+        {% trans "Canvas not supported." %}
+    </canvas>
+    </div>
+
+    <!-- Note that Google Chrome on Android doesn't respect any of these,
+    html attributes which attempt to disable text suggestions on the
+    on-screen keyboard. Let's hope Chrome implements the ime-mode
+    style for example -->
+    <!-- TODO: check if this is needed on iOS -->
+    <textarea id="keyboardinput" autocapitalize="off"
+              autocorrect="off" autocomplete="off" spellcheck="false"
+              mozactionhint="Enter" onsubmit="return false;"
+              style="display: none;">
+    </textarea>
+
+{% endblock %}
+
+{% block foot %}
+<script>
+
+    /*jslint white: false */
+    /*global window, $, Util, RFB, */
+    "use strict";
+
+    // dirty fix for keyboard on iOS devices
+    var keyboardVisible = false;
+    var isTouchDevice = false;
+    isTouchDevice = 'ontouchstart' in document.documentElement;
+
+    // Load supporting scripts
+    Util.load_scripts(["webutil.js", "base64.js", "websock.js", "des.js",
+                           "keysymdef.js", "keyboard.js", "input.js", "display.js",
+                           "inflator.js", "rfb.js", "keysym.js"]);
+
+    var rfb;
+
+
+<!-- Resize and Scale -->
+    var resizeMode = "Local Downscaling";
+    var displayProportion;
+
+    Util.addEvent( window, 'resize', screenScale );
+
+
+    $('.scale-item').click(function(event) {
+        $('.scale-item').removeClass('active');
+        $(event.target).addClass('active');
+        var text = $(event.target).text();
+        resizeMode = text.replace(/^\s*(.*)\s*$/, '$1');
+        screenScale();
+    });
+
+    function windowResize(){
+        var actualWidth = $('#noVNC_canvas').width();
+        var actualHeight = actualWidth / displayProportion;
+        window.resizeTo(actualWidth + 16 , actualHeight + 121);
+    }
+
+    function screenScale(){
+        var display = rfb.get_display();
+        var displayHeight = display.get_height();
+        var displayWidth = display.get_width();
+        displayProportion = displayWidth / displayHeight ;
+
+        if (resizeMode == "None") {
+            var scaleRatio = display.autoscale( displayWidth, displayHeight, true);
+            var scrollHeight = Math.max(
+              document.body.scrollHeight, document.documentElement.scrollHeight,
+              document.body.offsetHeight, document.documentElement.offsetHeight,
+              document.body.clientHeight, document.documentElement.clientHeight
+            );
+            document.body.style.height = scrollHeight + "px";
+        } else {
+            var screen = screenSize();
+            var downscaleOnly = resizeMode === 'Local Downscaling';
+            var scaleRatio = display.autoscale(screen.w, screen.h, downscaleOnly);
+            $('body').css("height", "");
+        }
+
+        rfb.get_mouse().set_scale(scaleRatio);
+    }
+
+    function screenSize() {
+            var screen = $D('noVNC_area');
+
+            // Hide the scrollbars until the size is calculated
+            screen.style.overflow = "hidden";
+
+            var pos = Util.getPosition(screen);
+            var w = pos.width;
+            var h = pos.height;
+
+            screen.style.overflow = "visible";
+
+            if (isNaN(w) || isNaN(h)) {
+                return false;
+            } else {
+                return {w: w, h: h};
+            }
+        }
+<!-- ./end scale and resize -->
+
+    function passwordRequired(rfb) {
+        var modal;
+        modal =  '<div class="modal" id="modal-password-required">';
+        modal += '  <div class="modal-background"></div>';
+        modal += '    <div class="modal-card">';
+        modal += '      <header class="modal-card-head" >';
+        modal += '        <p class="modal-card-title">{% trans "Password required" %}</p>';
+        modal += '        <button class="delete" aria-label="close"></button>';
+        modal += '      </header>';
+        modal += '      <section class="modal-card-body">';
+        modal += '        <form id="password_form" onsubmit="return setPassword();">';
+        modal += '          <div class="control">';
+        modal += '            <input type="password" class="input is-danger" id="password_input" placeholder="Enter password"/>';
+        modal += '          </div>';
+        modal += '        </form>';
+        modal += '      </section>';
+        modal += '    <footer class="modal-card-foot">';
+        modal += '      <button class="button is-danger" onclick="return setPassword();">{% trans "OK" %}</button>';
+        modal += '    </footer>';
+        modal += '  </div>';
+        modal += '</div>';
+        $('body').append(modal);
+        $('#modal-password-required').addClass("is-active");
+    }
+    function setPassword() {
+        rfb.sendPassword($('#password_input').val());
+        $('#modal-password-required').removeClass("is-active");
+		setTimeout(screenScale, 1000);
+        return false;
+    }
+    function sendCtrlAltDel() {
+        rfb.sendCtrlAltDel();
+        return false;
+    }
+
+    function sendCtrlAltFN(f) {
+        var keys_code=[0xFFBE,0xFFBF,0xFFC0,0xFFC1,0xFFC2,0xFFC3,0xFFC4,0xFFC5,0xFFC6,0xFFC7,0xFFC8,0xFFC9];
+        if (keys_code[f]==undefined) {
+            return;
+        }
+        rfb.sendKey(0xFFE3, 'down');
+        rfb.sendKey(0xFFE9, 'down');
+        rfb.sendKey(keys_code[f], 'down');
+        rfb.sendKey(keys_code[f], 'up');
+        rfb.sendKey(0xFFE9, 'up');
+        rfb.sendKey(0xFFE3, 'up');
+    };
+
+    // dirty fix for keyboard on iOS devices
+    function showKeyboard() {
+        var kbi, skb, l;
+        kbi = $D('keyboardinput');
+        skb = $D('showKeyboard');
+        l = kbi.value.length;
+        if (keyboardVisible === false) {
+            kbi.focus();
+            try {
+                kbi.setSelectionRange(l, l);
+            } // Move the caret to the end
+            catch (err) {
+            } // setSelectionRange is undefined in Google Chrome
+            keyboardVisible = true;
+            //skb.className = "noVNC_status_button_selected";
+        } else if (keyboardVisible === true) {
+            kbi.blur();
+            //skb.className = "noVNC_status_button";
+            keyboardVisible = false;
+        }
+    }
+
+
+    function updateState(rfb, state, oldstate, msg) {
+        var s, sb, cad, af, level;
+        cad = $D('sendCtrlAltDelButton');
+        af = $D('askFullscreen');
+        switch (state) {
+            case 'failed':
+                level = "danger";
+                break;
+            case 'fatal':
+                level = "danger";
+                break;
+            case 'normal':
+                level = "info";
+                break;
+            case 'disconnected':
+                level = "info";
+                break;
+            case 'loaded':
+                level = "info";
+                break;
+            default:
+                level = "warning";
+                break;
+        }
+        if (typeof(msg) !== 'undefined') {
+            log_message(msg,level);
+        }
+    }
+
+
+    function toggleFullscreen() {
+        if (document.fullscreenElement || // alternative standard method
+            document.mozFullScreenElement || // currently working methods
+            document.webkitFullscreenElement ||
+            document.msFullscreenElement) {
+
+            if (document.exitFullscreen) {
+                document.exitFullscreen();
+            } else if (document.mozCancelFullScreen) {
+                document.mozCancelFullScreen();
+            } else if (document.webkitExitFullscreen) {
+                document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) {
+                document.msExitFullscreen();
+            }
+            document.getElementById("noVNC_clip").style.display = "flex";
+        } else {
+
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen();
+            } else if (document.documentElement.mozRequestFullScreen) {
+                document.documentElement.mozRequestFullScreen();
+            } else if (document.documentElement.webkitRequestFullscreen) {
+                document.documentElement.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+            } else if (document.body.msRequestFullscreen) {
+                document.body.msRequestFullscreen();
+            }
+            document.getElementById("noVNC_clip").style.display = "none";
+        }
+        updateFullscreenButton();
+    }
+
+
+
+    var fullScreen_icon = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"> \
+                               <path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"></path> \
+                           </svg>';
+
+    var fullScreenExit_icon = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"> \
+                               <path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"></path> \
+                               </svg>';
+
+    function updateFullscreenButton() {
+        if (document.fullscreenElement || // alternative standard method
+            document.mozFullScreenElement || // currently working methods
+            document.webkitFullscreenElement ||
+            document.msFullscreenElement ) {
+
+            document.getElementById('#noVNC_fullscreen_icon').innerHTML = fullScreen_icon;
+
+        } else {
+            document.getElementById('#noVNC_fullscreen_icon').innerHTML = fullScreenExit_icon;
+        }
+    }
+
+	
+	function initConnection() {
+        var host, port, password, path, token;
+
+        // dirty fix for keyboard on iOS devices
+        if (isTouchDevice) {
+            $D('showKeyboard').onclick = showKeyboard;
+            // Remove the address bar
+            setTimeout(function () {
+                window.scrollTo(0, 1);
+            }, 100);
+        } else {
+            $D('showKeyboard').style.display = "none";
+        }
+
+        WebUtil.init_logging(WebUtil.getQueryVar('logging', 'warn'));
+        document.title = unescape(WebUtil.getQueryVar('title', '{{ instance.name }}'));
+        // By default, use the host and port of server that served this file
+        host = '{{ ws_host }}';
+        port = '{{ ws_port }}';
+        //password = '{{ console_passwd }}';
+
+        if ((!host) || (!port)) {
+            updateState('failed',
+                    "Must specify host and port in URL");
+            return;
+        }
+
+        rfb = new RFB({'target': document.getElementById('noVNC_canvas'),
+            'encrypt': WebUtil.getQueryVar('encrypt',
+                    (window.location.protocol === "https:")),
+            'repeaterID': WebUtil.getQueryVar('repeaterID', ''),
+            'true_color': WebUtil.getQueryVar('true_color', true),
+            'local_cursor': WebUtil.getQueryVar('cursor', true),
+            'shared': WebUtil.getQueryVar('shared', true),
+            'view_only': WebUtil.getQueryVar('view_only', false),
+            'onUpdateState': updateState,
+            'onPasswordRequired': passwordRequired});
+        rfb.connect(host, port, password, path);	
+	}
+
+	function initActions (status) {
+		if (status == 1){
+			$("#poweronButton").toggle(false);
+			$("#poweroffButton").toggle(true);
+			$("#suspendButton").toggle(true);
+			$("#resumeButton").toggle(false);
+			$("#restartButton").toggle(true);
+		} else if (status == 3) {
+			$("#poweronButton").toggle(false);
+			$("#poweroffButton").toggle(false);
+			$("#suspendButton").toggle(false);
+			$("#resumeButton").toggle(true);
+			$("#restartButton").toggle(true);
+		} else if (status == 5) {
+			$("#poweronButton").toggle(true);
+			$("#poweroffButton").toggle(false);
+			$("#suspendButton").toggle(false);
+			$("#resumeButton").toggle(false);
+			$("#restartButton").toggle(false);
+		}		
+	}
+
+    $("#instanceShutdown").click( function (){
+		var rqst_body =  'token={{token}}&action=poweroff';
+		callPage('actions/', rqst_body);
+        $('#modal-shutdown').removeClass("is-active");
+    });
+
+    $("#poweronButton").click( function (){
+		var rqst_body =  'token={{token}}&action=poweron';
+		callPage('actions/', rqst_body);
+		setTimeout(initConnection, 1500);
+    });
+	
+    $("#instanceRestart").click( function (){
+		var rqst_body =  'token={{token}}&action=restart';
+		callPage('actions/', rqst_body);
+        $('#modal-restart').removeClass("is-active");
+		setTimeout(initConnection, 1000);
+    });
+	
+    $("#instanceSuspend").click( function (){
+		var rqst_body =  'token={{token}}&action=suspend';
+		callPage('actions/', rqst_body);
+        $('#modal-pause').removeClass("is-active");
+    });
+
+    $("#resumeButton").click( function (){
+		var rqst_body =  'token={{token}}&action=resume';
+		callPage('actions/', rqst_body);
+    });
+	
+    window.onscriptsload = function () {
+		initConnection();
+		initActions ({{vm_status}});
+		setTimeout(screenScale, 1000);
+    };
+</script>
+{% endblock %}
